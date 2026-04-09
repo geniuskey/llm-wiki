@@ -8,3 +8,4 @@ openpyxl
 python-pptx
 beautifulsoup4
 requests
+openai

@@ -165,12 +165,46 @@ class AskRequest(BaseModel):
 async def ask_rag(request: AskRequest):
     """
     RAG 시스템을 사용하여 질문에 답변을 제공하기 위한 엔드포인트
-    (현재는 검색된 문서 결과만 반환)
+    (검색된 문서를 컨텍스트로 LLM에 질의하여 답변 생성)
     """
-    results = rag.retrieve(query=request.query, filters=request.filters)
-    
-    return {
-        "query": request.query,
-        "retrieved_documents": results,
-        "message": "추후 LLM API를 연동하여 검색된 문서를 바탕으로 최종 답변을 생성하도록 확장할 수 있습니다."
-    }
+    try:
+        results = rag.retrieve(query=request.query, filters=request.filters)
+        
+        # 검색된 문서들의 텍스트를 모아 컨텍스트 생성
+        context_texts = [doc.get("text", "") for doc in results]
+        context = "\n\n---\n\n".join(context_texts)
+        
+        if not context.strip():
+            context = "관련된 위키 문서를 찾지 못했습니다."
+            
+        system_prompt = (
+            "당신은 사내 위키(Knowledge Base)의 AI 어시스턴트입니다. "
+            "주어진 [위키 컨텍스트]를 바탕으로 사용자의 질문에 정확하고 친절하게 답변해주세요. "
+            "컨텍스트에 없는 내용은 모른다고 답변해야 하며, 지어내지 마세요."
+        )
+        
+        user_prompt = f"[위키 컨텍스트]\n{context}\n\n[질문]\n{request.query}"
+        
+        # OpenAI 호환 API 호출
+        response = llm_client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.1
+        )
+        
+        answer = response.choices[0].message.content
+        
+        return {
+            "query": request.query,
+            "answer": answer,
+            "retrieved_documents": results
+        }
+    except Exception as e:
+        return {
+            "query": request.query,
+            "answer": f"답변 생성 중 오류가 발생했습니다: {str(e)}",
+            "retrieved_documents": []
+        }

@@ -25,3 +25,9 @@ markdown_extensions:
   - admonition
   - tables
   - toc
+
+extra_css:
+  - stylesheets/chatbot.css
+
+extra_javascript:
+  - javascripts/chatbot.js
