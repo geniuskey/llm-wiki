@@ -9,10 +9,17 @@ import pdfplumber
 from docx import Document
 from pptx import Presentation
 import openpyxl
+import requests
+from bs4 import BeautifulSoup
+from typing import Optional, Dict, Any
+from pydantic import BaseModel
+
+from my_rag import RagClient
 
 load_dotenv(dotenv_path="../.env")
 
 app = FastAPI()
+rag = RagClient()
 
 app.add_middleware(
     CORSMiddleware,
@@ -107,13 +114,17 @@ async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File
     with open(md_filepath, "w", encoding="utf-8") as f:
         f.write(markdown_content)
         
+    # RAG 시스템에 문서 인덱싱
+    rag.insert_doc(
+        doc_id=md_filename,
+        content=markdown_content,
+        metadata={"source_type": "upload", "original_filename": file.filename}
+    )
+        
     # Queue parsing background task
     background_tasks.add_task(trigger_claude_ingest, md_filename)
     
     return {"message": "File processed and queued for wiki ingestion.", "filename": md_filename}
-
-import requests
-from bs4 import BeautifulSoup
 
 @app.post("/url")
 async def submit_url(background_tasks: BackgroundTasks, url: str = Form(...)):
@@ -131,9 +142,35 @@ async def submit_url(background_tasks: BackgroundTasks, url: str = Form(...)):
     md_filename = f"url_{datetime.now().strftime('%Y%m%d%H%M%S')}.md"
     md_filepath = os.path.join(RAW_SOURCES_DIR, md_filename)
     
+    markdown_content = f"# Extracted from URL: {url}\n\n{text_content}"
     with open(md_filepath, "w", encoding="utf-8") as f:
-        f.write(f"# Extracted from URL: {url}\n\n{text_content}")
+        f.write(markdown_content)
+        
+    # RAG 시스템에 문서 인덱싱
+    rag.insert_doc(
+        doc_id=md_filename,
+        content=markdown_content,
+        metadata={"source_type": "url", "url": url}
+    )
         
     background_tasks.add_task(trigger_claude_ingest, md_filename)
     
     return {"message": "URL processed and queued for wiki ingestion.", "filename": md_filename}
+
+class AskRequest(BaseModel):
+    query: str
+    filters: Optional[Dict[str, Any]] = None
+
+@app.post("/ask")
+async def ask_rag(request: AskRequest):
+    """
+    RAG 시스템을 사용하여 질문에 답변을 제공하기 위한 엔드포인트
+    (현재는 검색된 문서 결과만 반환)
+    """
+    results = rag.retrieve(query=request.query, filters=request.filters)
+    
+    return {
+        "query": request.query,
+        "retrieved_documents": results,
+        "message": "추후 LLM API를 연동하여 검색된 문서를 바탕으로 최종 답변을 생성하도록 확장할 수 있습니다."
+    }
