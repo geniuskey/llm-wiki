@@ -32,7 +32,8 @@ llm-wiki/
 │   ├── raw_sources/ # Immutable, raw ingested texts (extracted from PDF/PPTX/etc.)
 │   ├── mkdocs.yml   # Wiki layout and UI configurations
 │   └── CLAUDE.md    # The Core System Prompt & Rules for the Claude CLI
-└── run_all.bat      # Quick-start launch script for Windows
+├── run_all.bat      # Quick-start launch script for Windows
+└── run_all.sh       # Quick-start launch script for Linux/macOS
 ```
 
 ---
@@ -66,11 +67,14 @@ DEPLOYMENT_MODE=local
 
 ## How to Run Locally
 
-You can launch both the React Frontend and the FastAPI Backend simultaneously using the provided batch script:
+You can launch both the React Frontend and the FastAPI Backend simultaneously using the provided launch scripts:
 
 ```bash
-# In the root LLM-Wiki directory
+# Windows
 .\run_all.bat
+
+# Linux / macOS
+bash run_all.sh
 ```
 
 1. **Frontend (UI)** will be accessible via a Vite localhost URL (usually `http://localhost:5173`).
